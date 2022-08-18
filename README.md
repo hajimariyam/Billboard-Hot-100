@@ -4,6 +4,8 @@ A C++ program that analyzes data for the top 50 songs from weekly Billboard Hot 
 
 <img src='data_sample.PNG' title='Sample Data' width='65%' />
 
+*Note:*	Some rows may have missing values for the last-week columns. For example, in the sample data above, Willow by Taylor Swift has a blank value for the "last-week" column, likely because 12/26/2020 was the first week that this song appeared on the Hot 100 Billboard chart. The program reads in and handles these values differently.
+
 The user can choose which file to analyze. Once the data is read from the file, the following menu options for analysis will be displayed:
 - **Menu Option 1** – Display the following general information about the dataset that has been read in:
     - The number of rows (aka size) of the dataset, and
