@@ -1,461 +1,352 @@
 #include <iostream>   // For input and output
 #include <fstream>    // For file input and output
-#include <cassert>    // To validate if file is open
+#include <cassert>    // To validate if file is open via assert statement
 #include <cctype>     // For tolower()
-#include <algorithm>  // For find()
+#include <algorithm>  // For find(), which searches within a vector
 #include <string>    
 #include <vector>
 using namespace std;  // To avoid prefacing cin/cout with std::
 
 
-class Row {
+class Record {
     public:
         string date, song, artist;
-        string rank, lastWeek, peakRank, weeksOnBoard;
+        int rank, lastWeek, peakRank, weeksOnBoard;
 };
 
 
-void readFile(string fileName, vector <Row>& chart) {
-
-    string line;
+void readFile(string fileName, vector <Record>& billboardRecords) 
+{
+    string recordLine;
   
     ifstream inStream;                  // Declare input stream for reading
     inStream.open(fileName);            // Open file
     assert(inStream.fail() == false);   // Ensure file opened
+
+    // read and ignore first line containing header with column names
+    getline(inStream, recordLine);
     
-    while (getline(inStream, line)) {
-        Row row;
+    // read in each line of the file
+    while (getline(inStream, recordLine)) {
+        Record record;
         
-        int num1 = line.find(',', 0);
-        row.date = line.substr(0, num1);
+        // separate the line by commas
+        int posComma1 = recordLine.find(',', 0);                           // find(sub-string to find, initial position to begin search)
+        record.date = recordLine.substr(0, posComma1);                     // substr(position of the first character to be copied, length of sub-string)
         
-        int num2 = line.find(',', num1+1);
-        row.rank = line.substr(num1+1, num2-num1-1);
+        int posComma2 = recordLine.find(',', posComma1+1);
+        record.rank = stoi(recordLine.substr(posComma1+1, posComma2-posComma1-1));      // stoi() casts as int
         
-        int num3 = line.find(',', num2+1);
-        row.song = line.substr(num2+1, num3-num2-1);
+        int posComma3 = recordLine.find(',', posComma2+1);
+        record.song = recordLine.substr(posComma2+1, posComma3-posComma2-1);
           
-        int num4 = line.find(',', num3+1);
-        row.artist = line.substr(num3+1, num4-num3-1);
+        int posComma4 = recordLine.find(',', posComma3+1);
+        record.artist = recordLine.substr(posComma3+1, posComma4-posComma3-1);
 
-        int num5 = line.find(',', num4+1);
-        row.lastWeek = line.substr(num4+1, num5-num4-1);
+        int posComma5 = recordLine.find(',', posComma4+1);
+        string columnVal = recordLine.substr(posComma4+1, posComma5-posComma4-1);
+        record.lastWeek = (columnVal != "") ? stoi(columnVal) : 0;                     // some rows don't have values for lastWeek column; if so, lastWeek = 0
 
-        int num6 = line.find(',', num5+1);
-        row.peakRank = line.substr(num5+1, num6-num5-1);
+        int posComma6 = recordLine.find(',', posComma5+1);
+        record.peakRank = stoi(recordLine.substr(posComma5+1, posComma6-posComma5-1));
 
-        int num7 = line.find(',', num6+1);
-        row.weeksOnBoard = line.substr(num6+1, num7-num6-1);
+        record.weeksOnBoard = stoi(recordLine.substr(posComma6+1));       // default length is all characters until end of string
 
-        chart.push_back(row);
+        billboardRecords.push_back(record);
     }
-  
-    // remove first Row object containing column names
-    chart.erase(chart.begin());
 }
 
 
-void displayMenuOptions(const vector <Row>& chart, int fileOption);
+void displayMenuOptions(const vector <Record>& billboardRecords, int fileOption);
 
 
-void menuOption1(const vector <Row>& chart) {
+void menuOption1(const vector <Record>& billboardRecords) {
+    
+    // find the number of unique songs represented in the dataset
     vector <string> uniqueSongs;
-  
-    for (int i = 0; i < chart.size(); i++) {
-        if (find(uniqueSongs.begin(), uniqueSongs.end(), chart.at(i).song) == uniqueSongs.end()) {
-            uniqueSongs.push_back(chart.at(i).song);
+    for (int i = 0; i < billboardRecords.size(); i++) {
+        string song = billboardRecords.at(i).song;
+        // Add the song name to the vector if it is not found in the vector already
+        if (find(uniqueSongs.begin(), uniqueSongs.end(), song) == uniqueSongs.end()) {
+            uniqueSongs.push_back(song);
         }
     }
     
-    cout << "Total number of rows: "
-         << chart.size() << endl
+    cout << "Total number of records: "
+         << billboardRecords.size() << endl
          << "Number of unique songs represented in the dataset: "
          << uniqueSongs.size() << endl;
 }
 
 
 // song with the most #1 occurrences for a given decade or year
-void menuOption2(const vector <Row>& chart, int fileOption) {
-    char decadeOrYear;
-    int inputDecade, inputYear, rowYear, rowRank;
-    int totalOccurences = 0;
-    vector <Row> decadeVector;
-    vector <string> songsVector, artistsVector, highestSongs, highestArtists;
-    vector <int> totalOccurencesVector;
+void menuOption2(const vector <Record>& filteredRecords) {
+    vector <string> songsVector, artistsVector, maxNumOneSongs, maxNumOneArtists;
+    vector <int> totalNumOneOccurencesVector;
+    int maxNumOneOccurences = 0;
 
-    while (true) {
-        cout << "Enter D to select a decade or Y to select a year."
-             << "\nYour choice --> ";
-      
-        cin >> decadeOrYear;
-        decadeOrYear = tolower(decadeOrYear);
+    // for each record in given year or decade...
+    for (int i = 0; i < filteredRecords.size(); i++) {
 
-        if (decadeOrYear == 'd') {
-            cout << "Enter the decade you would like to choose, "
-                 << "as a multiple of 10 (e.g. 2010).\n";
-            cin >> inputDecade;
-            inputDecade = (inputDecade - (inputDecade % 10));      // adjust input that's not a multiple of 10
+        // Parallel vectors
+        songsVector.push_back(filteredRecords.at(i).song);
+        artistsVector.push_back(filteredRecords.at(i).artist);
 
-            for (int i = 0; i < chart.size(); i++) {
-                // MM/DD/YYYY --> YYYY, convert to integer with stoi()
-                rowYear = stoi(chart.at(i).date.substr(chart.at(i).date.size()-4, 4));
-                rowRank = stoi(chart.at(i).rank);
-                // compare using first 3 integer of YYYY, filter songs at rank #1
-                if ((rowYear / 10 == inputDecade / 10) && rowRank == 1) {
-                    decadeVector.push_back(chart.at(i));  }
+        // check how many times each song appears at #1
+        int totalNumOneOccurences = 0;    // reset for each song
+        for (int j = 0; j < filteredRecords.size(); j++) {
+            if (filteredRecords.at(i).song == filteredRecords.at(j).song) {
+                totalNumOneOccurences += 1;
             }
-
-            // No matches found in data for inputted year
-            if (decadeVector.size() == 0) {
-                cout << "No songs found in that timeframe. Be sure that the timeframe "
-                     << "you enter is within the one covered by the dataset chosen.";
-                displayMenuOptions(chart, fileOption);
-            }
-            break;
         }
-          
-        else if (decadeOrYear == 'y') {
-            cout << "Enter the year you would like to choose (e.g. 2001). \n";
-            cin >> inputYear;
+        totalNumOneOccurencesVector.push_back(totalNumOneOccurences);
 
-            for (int i = 0; i < chart.size(); i++) {
-                rowYear = stoi(chart.at(i).date.substr(chart.at(i).date.size()-4, 4));
-                rowRank = stoi(chart.at(i).rank);
-                if ((rowYear == inputYear) && rowRank == 1) {
-                    decadeVector.push_back(chart.at(i)); }
-            }
-            // No matches found in data for inputted year
-            if (decadeVector.size() == 0) {
-                cout << "No songs found in that timeframe. Be sure that the timeframe "
-                     << "you enter is within the one covered by the dataset chosen.";
-                displayMenuOptions(chart, fileOption);
-            }
-            break;
-        }
-          
-        else {
-            cout << "\nInvalid entry. Try again.\n";
-            continue;
+        // compare to find the record with the greatest climb
+        if (totalNumOneOccurences >= maxNumOneOccurences) {
+            maxNumOneOccurences = totalNumOneOccurences;
         }
     }
 
-    for (int i = 0; i < decadeVector.size(); i++) {
-        songsVector.push_back(decadeVector.at(i).song);
-        artistsVector.push_back(decadeVector.at(i).artist);
-        // check how many times given song appears at #1
-        totalOccurences = 0;
-        for (int j = 0; j < decadeVector.size(); j++) {
-            if (decadeVector.at(i).song == decadeVector.at(j).song) {
-                totalOccurences += 1;
-            }
-        }
-        totalOccurencesVector.push_back(totalOccurences);
-    }
-
-    totalOccurences = 0;
-  
-    for (int i = 0; i < totalOccurencesVector.size(); i++) {
-        // find max total of occurences
-        if (totalOccurencesVector.at(i) >= totalOccurences) {
-            totalOccurences = totalOccurencesVector.at(i);
-        }
-    }
-
+    // find songs/artists with matching max total of occurences
     for (int i = 0; i < songsVector.size(); i++) {
-        // find songs/artists with matching max total of occurences
-        if (totalOccurencesVector.at(i) == totalOccurences) {
-            if (find(highestSongs.begin(), highestSongs.end(), songsVector.at(i)) == highestSongs.end()) {
-                highestSongs.push_back(songsVector.at(i));
-                highestArtists.push_back(artistsVector.at(i));
+        if (totalNumOneOccurencesVector.at(i) == maxNumOneOccurences) {
+            // if this song is in maxNumOneSongs vector, it's already been counted for tie, otherwise..
+            if (find(maxNumOneSongs.begin(), maxNumOneSongs.end(), songsVector.at(i)) == maxNumOneSongs.end()) {
+                // add to vector with songs/artists that tied for highest #1 occurence
+                maxNumOneSongs.push_back(songsVector.at(i));
+                maxNumOneArtists.push_back(artistsVector.at(i));
             }
         }
     }
   
     cout << "\n\nThe song(s) with the most #1 occurrences for selected time period is:  \n";
-    for (int i = 0; i < highestSongs.size(); i++) {
-        cout << "        Song Title: " << highestSongs.at(i) << "\n"
-             << "        Artist: " << highestArtists.at(i) << "\n"
-             << "        # of occurrences: " << totalOccurences << "\n";
+    for (int i = 0; i < maxNumOneSongs.size(); i++) {
+        cout << "\n        Song Title: " << maxNumOneSongs.at(i) << "\n"
+             << "        Artist: " << maxNumOneArtists.at(i) << "\n"
+             << "        # of occurrences: " << maxNumOneOccurences << "\n";
     }
 }
 
 
-// most long-lasting song on the charts for a given decade or year
-void menuOption3(const vector <Row>& chart, int fileOption) {
-    char decadeOrYear;
-    int inputDecade, inputYear, rowYear, rowWeeksOnBoard;
-    int highestWeeksOnBoard = 0;
+// song with the highest number of weeks on the charts for a given decade or year
+void menuOption3(const vector <Record>& filteredRecords) {
+    int recordWeeksOnBoard;
     string song, artist;
-    vector <Row> decadeVector;
     vector <int> weeksOnBoardVector;
-
-    while (true) {
-        cout << "Enter D to select a decade or Y to select a year."
-             << "\nYour choice --> ";
-      
-        cin >> decadeOrYear;
-        decadeOrYear = tolower(decadeOrYear);
-
-        if (decadeOrYear == 'd') {
-            cout << "Enter the decade you would like to choose, "
-                 << "as a multiple of 10 (e.g. 2010).\n";
-            cin >> inputDecade;
-            inputDecade = (inputDecade - (inputDecade % 10));      // adjust input that's not a multiple of 10
-
-            for (int i = 0; i < chart.size(); i++) {
-                // MM/DD/YYYY --> YYYY, convert to integer with stoi()
-                rowYear = stoi(chart.at(i).date.substr(chart.at(i).date.size()-4, 4));
-                // compare using first 3 integer of YYYY
-                if (rowYear / 10 == inputDecade / 10) {
-                    decadeVector.push_back(chart.at(i));  }
-            }
-            // No matches found in data for inputted year
-            if (decadeVector.size() == 0) {
-                cout << "No songs found in that timeframe. Be sure that the timeframe "
-                     << "you enter is within the one covered by the dataset chosen.";
-                displayMenuOptions(chart, fileOption);
-            }
-            break;
-        }
-          
-        else if (decadeOrYear == 'y') {
-            cout << "Enter the year you would like to choose (e.g. 2001). \n";
-            cin >> inputYear;
-
-            for (int i = 0; i < chart.size(); i++) {
-                rowYear = stoi(chart.at(i).date.substr(chart.at(i).date.size()-4, 4));
-                if (rowYear == inputYear) {
-                    decadeVector.push_back(chart.at(i)); }
-            }
-
-            // No matches found in data for inputted year
-            if (decadeVector.size() == 0) {
-                cout << "No songs found in that timeframe. Be sure that the timeframe "
-                     << "you enter is within the one covered by the dataset chosen.";
-                displayMenuOptions(chart, fileOption);
-            }
-            break;
-        }
-          
-        else {
-            cout << "\nInvalid entry. Try again.\n";
-            continue;
-        }
-    }
   
-    for (int i = 0; i < decadeVector.size(); i++) {
-        // check for the highest number of weeks on board
-        rowWeeksOnBoard = stoi(decadeVector.at(i).weeksOnBoard);
-        if (rowWeeksOnBoard > highestWeeksOnBoard) {
-            highestWeeksOnBoard = rowWeeksOnBoard;
-            song = decadeVector.at(i).song;
-            artist = decadeVector.at(i).artist;
+    // check for the highest number of weeks on board
+    int maxWeeksOnBoard = 0;
+    for (int i = 0; i < filteredRecords.size(); i++) {
+        recordWeeksOnBoard = filteredRecords.at(i).weeksOnBoard;
+        if (recordWeeksOnBoard > maxWeeksOnBoard) {
+            maxWeeksOnBoard = recordWeeksOnBoard;
+            song = filteredRecords.at(i).song;
+            artist = filteredRecords.at(i).artist;
         }
     }
   
     cout << "\nThe song with the highest number of weeks on the charts is: \n"
-         << "        " << song << " by " << artist << " with " << highestWeeksOnBoard << " weeks on the chart.\n";
+         << "        " << song << " by " << artist << " with " << maxWeeksOnBoard << " weeks on the chart.\n";
 }
 
 
 // song with the greatest weekly climb on the charts given a decade or year
-void menuOption4(const vector <Row>& chart, int fileOption) {
-    char decadeOrYear;
-    int inputDecade, inputYear, rowYear, rowRank, rowLastWeek;
-    int climb = 0;
-    int highestClimb = 0;
-    vector <Row> decadeVector;
+void menuOption4(const vector <Record>& filteredRecords) {
     vector <string> songsVector, artistsVector, datesVector;
     vector <int> rankVector, lastWeekVector, climbVector;
+    int greatestClimb = 0;
+  
+    // for each record in given year or decade...
+    for (int i = 0; i < filteredRecords.size(); i++) {
 
-    while (true) {
-        cout << "Enter D to select a decade or Y to select a year."
-             << "\nYour choice --> ";
-      
-        cin >> decadeOrYear;
-        decadeOrYear = tolower(decadeOrYear);
+        // organize required columns into parallel vectors
+        datesVector.push_back(filteredRecords.at(i).date);
+        rankVector.push_back(filteredRecords.at(i).rank);
+        songsVector.push_back(filteredRecords.at(i).song);
+        artistsVector.push_back(filteredRecords.at(i).artist);
+        lastWeekVector.push_back(filteredRecords.at(i).lastWeek);
+        
+        // calculate climb from previous week rank to current week rank
+        int thisClimb = 0;      // reset
+        thisClimb = filteredRecords.at(i).lastWeek - filteredRecords.at(i).rank;
+        climbVector.push_back(thisClimb);
 
-        if (decadeOrYear == 'd') {
-            cout << "Enter the decade you would like to choose, "
-                 << "as a multiple of 10 (e.g. 2010).\n";
-            cin >> inputDecade;
-            inputDecade = (inputDecade - (inputDecade % 10));      // adjust input that's not a multiple of 10
-
-            for (int i = 0; i < chart.size(); i++) {
-                // MM/DD/YYYY --> YYYY, convert to integer with stoi()
-                rowYear = stoi(chart.at(i).date.substr(chart.at(i).date.size()-4, 4));
-                // compare using first 3 integer of YYYY, filter songs at rank #1
-                if (rowYear / 10 == inputDecade / 10) {
-                    decadeVector.push_back(chart.at(i));  }
-            }
-
-            // No matches found in data for inputted year
-            if (decadeVector.size() == 0) {
-                cout << "No songs found in that timeframe. Be sure that the timeframe "
-                     << "you enter is within the one covered by the dataset chosen.";
-                displayMenuOptions(chart, fileOption);
-            }
-            break;
-        }
-          
-        else if (decadeOrYear == 'y') {
-            cout << "Enter the year you would like to choose (e.g. 2001). \n";
-            cin >> inputYear;
-
-            for (int i = 0; i < chart.size(); i++) {
-                rowYear = stoi(chart.at(i).date.substr(chart.at(i).date.size()-4, 4));
-                if (rowYear == inputYear) {
-                    decadeVector.push_back(chart.at(i)); }
-            }
-            // No matches found in data for inputted year
-            if (decadeVector.size() == 0) {
-                cout << "No songs found in that timeframe. Be sure that the timeframe "
-                     << "you enter is within the one covered by the dataset chosen.";
-                displayMenuOptions(chart, fileOption);
-            }
-            break;
-        }
-          
-        else {
-            cout << "\nInvalid entry. Try again.\n";
-            continue;
+        // compare to find the record with the greatest climb
+        if (thisClimb >= 0 && thisClimb >= greatestClimb) {     // >= 0 excludes negative climbs (generated due to blank lastWeek values) from comparison
+            greatestClimb = thisClimb;
         }
     }
   
-    for (int i = 0; i < decadeVector.size(); i++) {
-        if (decadeVector.at(i).rank != "") {
-            rowRank = stoi(decadeVector.at(i).rank);
-        }
-        if (decadeVector.at(i).lastWeek != "") {
-            rowLastWeek = stoi(decadeVector.at(i).lastWeek);
-        }
-
-        songsVector.push_back(decadeVector.at(i).song);
-        artistsVector.push_back(decadeVector.at(i).artist);
-        rankVector.push_back(rowRank);
-        lastWeekVector.push_back(rowLastWeek);
-        datesVector.push_back(decadeVector.at(i).date);
-        climb = rowLastWeek - rowRank;
-        climbVector.push_back(climb);
-    }
-  
-    for (int i = 0; i < climbVector.size(); i++) {
-        // find highest climb
-        if (climbVector.at(i) >= highestClimb) {
-            highestClimb = climbVector.at(i);
-        }
-    }
-
     cout << "\n\nThe song(s) with the greatest climb from previous week to current week position: \n";
     for (int i = 0; i < songsVector.size(); i++) {
-        // find rows with matching climb
-        if (climbVector.at(i) == highestClimb) {
-            cout << "        Song Title: " << songsVector.at(i) << "\n"
+        // find records with tie for greatest weekly climb, display all
+        if (climbVector.at(i) == greatestClimb) {
+            cout << "\n"
+                 << "        Song Title: " << songsVector.at(i) << "\n"
                  << "        Artist: " << artistsVector.at(i) << "\n"
                  << "        Week of: " << datesVector.at(i) << "\n"
                  << "        Previous Week Position: " << lastWeekVector.at(i) << "\n"
                  << "        Current Week Position: " << rankVector.at(i) << "\n"
-                 << "        Difference of " << highestClimb << " between previous week and current week position\n";
+                 << "        Difference of " << greatestClimb << " between previous week and current week position\n";
         }
     }
 }
 
 
-void menuOption5(const vector<Row>& chart) {
-
-    vector<Row> foundArtists;
-    int rowRank;
+// linear search on artist column to find #1 songs containing provided input text
+void menuOption5(const vector<Record>& billboardRecords) {
+    vector<Record> foundArtists;
+    int recordRank;
     string artist, searchInput;
   
     cout << "Enter search text to retrieve first 10 records of #1 songs that match by artist name: " << endl;
     cin.ignore();
-    getline(cin, searchInput);
+    getline(cin, searchInput);       // instead of single word, read in characters until '\n' is encountered
   
-    // make search value lowercase
-    for(int i = 0; i < searchInput.size(); i++) {
-        searchInput.at(i) = tolower(searchInput.at(i));
+    // lowercase each character of user inputted search value
+    for(int charIndex = 0; charIndex < searchInput.size(); charIndex++) {
+        searchInput.at(charIndex) = tolower(searchInput.at(charIndex));
     }
 
-    // find artist names that match search input
-    for (int i = 0; i < chart.size(); i++) {
-        
-        rowRank = stoi(chart.at(i).rank);
-        if (rowRank != 1) {
+    // find records where user search input is found in the artist name
+    for (int recordNum = 0; recordNum < billboardRecords.size(); recordNum++) {
+
+        // ignore records which are/were not #1 on the charts
+        if (billboardRecords.at(recordNum).rank != 1 || billboardRecords.at(recordNum).peakRank != 1) {
             continue;
         }
 
-        artist = chart.at(i).artist;
-        // make artist name lowercase
-        for(int j = 0; j <  artist.size(); j++) {
-            artist.at(j) = tolower(artist.at(j));
+        // lowercase each character of artist name
+        artist = billboardRecords.at(recordNum).artist;
+        for(int charIndex = 0; charIndex < artist.size(); charIndex++) {
+            artist.at(charIndex) = tolower(artist.at(charIndex));
         }
 
         // Check if artist name contains the search input
         if (artist.find(searchInput) != string::npos) {
-            foundArtists.push_back(chart.at(i));
+            foundArtists.push_back(billboardRecords.at(recordNum));
         }
     }
 
     // Check if no matching artists were found
-    if(foundArtists.size() == 0) {
+    if (foundArtists.size() == 0) {
         cout << "No matching artists were found." << endl;
         return;
     }
 
     // Display the first 10 #1 records found that match the artist name
     cout << "Retrieval of first 10 #1 records found based upon search by artist name: " << endl;
-    for (int x = 0; x < 10; x++) {
-        if(x >= foundArtists.size()) {
+    for (int num = 0; num < 10; num++) {
+        if (num >= foundArtists.size()) {
             break;
         }
-        cout << x+1 << ") Song: " << foundArtists.at(x).song << endl
-             << "    Artist: " << foundArtists.at(x).artist << endl
-             << "    Week of: " << foundArtists.at(x).date << endl
-             << "    Week Position: " << foundArtists.at(x).rank << endl;
+        cout << num+1 << ") Song: " << foundArtists.at(num).song << endl
+             << "    Artist: " << foundArtists.at(num).artist << endl
+             << "    Week of: " << foundArtists.at(num).date << endl
+             << "    Week Position: " << foundArtists.at(num).rank << endl;
     }
-   
 }
 
 
-void displayMenuOptions(const vector <Row>& chart, int fileOption) {
+vector <Record> timeframeSelection(const vector <Record>& billboardRecords, int fileOption, int menuOption) {
+    char decadeOrYear;
+    int inputDecade, inputYear, recordYear, recordRank;
+    vector <Record> filteredRecords;
 
     while (true) {
-        int menuOption;
-    
+        cout << "Enter D to select a decade or Y to select a year."
+             << "\nYour choice --> ";
+      
+        cin >> decadeOrYear;
+        decadeOrYear = tolower(decadeOrYear);
+
+        if (decadeOrYear != 'd' && decadeOrYear != 'y') {
+            cout << "\nInvalid entry. Try again.\n";
+            continue;
+        }
+
+        else {
+            if (decadeOrYear == 'd') {
+                cout << "Enter the decade you would like to choose, as a multiple of 10 (e.g. 2010).\n";
+                cin >> inputDecade;
+                inputDecade = (inputDecade - (inputDecade % 10));      // adjust input that's not a multiple of 10 
+            }
+            else if (decadeOrYear == 'y') {
+                cout << "Enter the year you would like to choose (e.g. 2001). \n";
+                cin >> inputYear;
+            }
+
+            for (int i = 0; i < billboardRecords.size(); i++) {
+                // MM/DD/YYYY --> YYYY, convert to integer with stoi()
+                recordYear = stoi(billboardRecords.at(i).date.substr(billboardRecords.at(i).date.size()-4, 4));
+                recordRank = billboardRecords.at(i).rank;
+
+                // for menu option 2, compare using first 3 integers of YYYY and filter songs at rank #1
+                if (decadeOrYear == 'd' && menuOption == 2 && (recordYear / 10 == inputDecade / 10) && recordRank == 1) {
+                    filteredRecords.push_back(billboardRecords.at(i));
+                }
+                else if (decadeOrYear == 'y' && menuOption == 2 && (recordYear == inputYear) && recordRank == 1) {
+                    filteredRecords.push_back(billboardRecords.at(i));
+                }
+                
+                // for menu options 3 and 4, only compare using first 3 integers of YYYY
+                else if (decadeOrYear == 'd' && (menuOption == 3 || menuOption == 4) && (recordYear / 10 == inputDecade / 10)) {
+                    filteredRecords.push_back(billboardRecords.at(i));
+                }
+                else if (decadeOrYear == 'y' && (menuOption == 3 || menuOption == 4) && (recordYear == inputYear)) {
+                    filteredRecords.push_back(billboardRecords.at(i));
+                }
+            }
+
+            // Check if there are songs found in the timeframe, e.g. searching for songs from 2001 in the 1960-1980 datafile will not yield results
+            if (filteredRecords.size() == 0) {
+                cout << "No songs found in that timeframe. Be sure that the timeframe you enter is within the one covered by the dataset chosen.";
+                displayMenuOptions(billboardRecords, fileOption);
+            }
+            else {
+                return filteredRecords;
+            };
+        }
+    }
+}
+
+
+void displayMenuOptions(const vector <Record>& billboardRecords, int fileOption) {
+    int menuOption = 0;
+
+    while (true) {
         cout << "\n\nSelect a menu option: \n"
-             << "   1. Display overall information about the data\n"
-             << "   2. Display the Billboard info of the song with the "
-             <<     "most #1 occurrences for a given decade or year\n"
-             << "   3. Display the Billboard info for the most long-lasting "
-             <<     "song on the charts for a given decade or year\n"
-             << "   4. Display the Billboard info for the song with the greatest "
-             <<     "weekly climb on the charts given a decade or year\n"
-             << "   5. Artist Search - Return the Billboard info for records "
-                    "that matches user input for artist search\n"
+             << "   1. Display general information about the dataset\n"
+             << "   2. Display the Billboard info of the song with the most #1 occurrences for a given decade or year\n"
+             << "   3. Display the Billboard info for the most long-lasting song on the charts for a given decade or year\n"
+             << "   4. Display the Billboard info for the song with the greatest weekly climb on the charts given a decade or year\n"
+             << "   5. Display the Billboard info for records that match the user input for artist search\n"
              << "   6. Exit\n"
              << "Your choice --> ";
-    
         cin >> menuOption;
     
         switch(menuOption) {
             case(1): {
-                menuOption1(chart);
+                menuOption1(billboardRecords);
                 break;
             }
             case(2): {
-                menuOption2(chart, fileOption);
+                vector <Record> filteredRecords = timeframeSelection(billboardRecords, fileOption, 2);
+                menuOption2(filteredRecords);
                 break;
             }
             case(3): {
-                menuOption3(chart, fileOption);
+                vector <Record> filteredRecords = timeframeSelection(billboardRecords, fileOption, 3);
+                menuOption3(filteredRecords);
                 break;
             }
             case(4): {
-                menuOption4(chart, fileOption);
+                vector <Record> filteredRecords = timeframeSelection(billboardRecords, fileOption, 4);
+                menuOption4(filteredRecords);
                 break;
             }
             case(5): {
-                menuOption5(chart);
+                menuOption5(billboardRecords);
                 break;
             }
             case(6): {
@@ -465,25 +356,25 @@ void displayMenuOptions(const vector <Row>& chart, int fileOption) {
             default: {
                 cout << "\nInvalid value.  "
                      << "Please re-enter a value from the menu options below.";
-                continue;
+                break;
             }
         }
     }
 }
 
 
-void displayFileOptions(vector <Row>& chart) 
+void displayFileOptions() 
 {
     int fileOption;
+    string fileName;
     
     cout << "Billboard Hot 100: Analysis \n"
          << " \n"
-         << "This program will analyze weekly Billboard data spanning "
-         <<   "from 1960 - 2020.\n\n"
+         << "This program will analyze data from weekly Billboard Hot 100 charts spanning 1960–2020.\n\n"
          << "Select file option:\n"
-         << "   1. To analyze charts top 50: 1960 - 1980 data file\n"
-         << "   2. To analyze charts top 50: 1981 - 2000 data file\n"
-         << "   3. To analyze charts top 50: 2001 - 2020 data file\n"
+         << "   1. To analyze top 50 songs from weekly 1960 - 1980 charts\n"
+         << "   2. To analyze top 50 songs from weekly 1981 - 2000 charts\n"
+         << "   3. To analyze top 50 songs from weekly 2001 - 2020 charts\n"
          << "Your choice --> ";
   
     cin >> fileOption;
@@ -491,33 +382,33 @@ void displayFileOptions(vector <Row>& chart)
     // read in relevant file
     switch(fileOption) {
         case(1): {
-            readFile("charts_top50_1960_1980.csv", chart);
+            fileName = "charts_top50_1960_1980.csv";
             break;
         }
         case(2): {
-            readFile("charts_top50_1981_2000.csv", chart);
+            fileName = "charts_top50_1981_2000.csv";
             break;
         }
         case(3): {
-            readFile("charts_top50_2001_2020.csv", chart);
+            fileName = "charts_top50_2001_2020.csv";
             break;
         }
         default: {
             cout << "\nInvalid value. Exiting Program.";
-            exit(0);
+            exit(-1);   // error
             break;
         }
     }
+
+    vector <Record> billboardRecords;
+    readFile(fileName, billboardRecords);
   
-    displayMenuOptions(chart, fileOption);
+    displayMenuOptions(billboardRecords, fileOption);
 }
 
 
-int main() {
-
-    vector <Row> chart;
-  
-    displayFileOptions(chart);
-  
+int main() 
+{
+    displayFileOptions();
     return 0;
 }
