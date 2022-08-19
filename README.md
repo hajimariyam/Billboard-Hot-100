@@ -1,6 +1,8 @@
 # Billboard-Hot-100
  
-A C++ program that reads in and analyzes data for the top 50 songs from weekly Billboard Hot 100 charts spanning 1960–2020. The dataset is seperated into three comma-separated values (csv) files by time period: 1960–1980, 1981–2000, and 2001–2020. The data is sorted from newest to oldest, and then by rank. The following is an example of sample data displayed in .csv and Excel:
+A C++ program that reads in and analyzes data for the top 50 songs from weekly Billboard Hot 100 charts spanning 1960–2020. 
+
+The dataset is seperated into three comma-separated values (csv) files by time period: 1960–1980, 1981–2000, and 2001–2020. The data is sorted from newest to oldest, and then by rank. The following is an example of sample data displayed in .csv and Excel:
 
 <img src='data_sample.PNG' title='Sample Data' width='65%' />
 
